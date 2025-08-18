@@ -1,8 +1,7 @@
 #include <thrust/device_vector.h>
-#include <thrust/remove.h>
 #include <thrust/sort.h>
-#include <thrust/execution_policy.h>
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
 #include <cmath>
 #include <random>
 
@@ -141,8 +140,8 @@ int main() {
              freeB / (1024.0*1024*1024), totalB / (1024.0*1024*1024));
 
     // Generate noise on the host
-    // const unsigned int volumeSize = 80 * 80 * 146 * 300; // For real size test
-    const unsigned int volumeSize = 80; // For quick test
+    const unsigned int volumeSize = 80 * 80 * 146 * 300; // For real size test
+    // const unsigned int volumeSize = 80; // For quick test
     std::vector<float> h_noise(volumeSize);
 
     std::mt19937 rng(12345); // deterministic seed
@@ -156,8 +155,15 @@ int main() {
 
     float percentileRank {0.9f}; // Must be between 0 and 1
 
-    std::cout << "Method Thrust: " << percentileWithThrust(h_noise, percentileRank) << std::endl;
+    auto startThrust = std::chrono::high_resolution_clock::now();
+    std::cout << "Method Thrust output: " << percentileWithThrust(h_noise, percentileRank) << std::endl;
+    auto stopThrust = std::chrono::high_resolution_clock::now();
+    std::cout << "Time of execution: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopThrust - startThrust).count() << "ms" << std::endl;
+
+    auto startRadix = std::chrono::high_resolution_clock::now();
     std::cout << "Method Radix:  " << percentileWithDeviceRadixSort(h_noise, percentileRank) << std::endl;
+    auto stopRadix = std::chrono::high_resolution_clock::now();
+    std::cout << "Time of execution: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopRadix - startRadix).count() << "ms" << std::endl;
 
     return 0;
 }

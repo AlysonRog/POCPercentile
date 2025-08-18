@@ -1,6 +1,6 @@
 ## Compilation
-nvcc -O2 percentileMethodes.cu -o percentileMethodes
-./percentileMethodes
+nvcc -arch=sm_75 percentileMethods.cu -o percentileMethods
+./percentileMethods
 
 ## Objective
 Compare 2 percentile methods:
