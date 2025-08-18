@@ -148,7 +148,8 @@ int main() {
              freeB / (1024.0*1024*1024), totalB / (1024.0*1024*1024));
 
     // Generate noise on the host
-    const unsigned int volumeSize = 80 * 80 * 146 * 300; // For real size test
+    const unsigned int volumeSize = 80 * 80 * 146 * 300 * 2; // For real size test
+    //const unsigned int volumeSize = 80 * 80 * 146 * 300; // For real size test
     // const unsigned int volumeSize = 80; // For quick test
     std::vector<float> h_noise(volumeSize);
 
