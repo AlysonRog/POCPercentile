@@ -25,3 +25,6 @@ Compare 2 percentile methods:
 
  Generate a volume of float of size 80*80*146*300 and pass it on both methods.
  Benchmark the memory consumed and the timing.
+
+ ## To profile
+ nsys profile --trace=cuda --cuda-memory-usage=true ./percentileMethods
