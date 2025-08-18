@@ -44,13 +44,15 @@ float percentileWithThrust(const std::vector<float>& dopplerVolume,
 {
   unsigned int volumeSize = dopplerVolume.size();
 
+  /// START SORT WITH THRUST
 	thrust::device_vector<float> d_dopplerVolume(dopplerVolume);
+	thrust::sort(thrust::cuda::par.on(0), d_dopplerVolume.begin(), d_dopplerVolume.end()); // execute on stream 0
+  /// END SORT WITH THRUST
 
+  // Compute the percentile
 	const double r = percentil * (volumeSize - 1);
 	const size_t k = static_cast<size_t>(floor(r));
 	const double frac = r - static_cast<double>(k);
-
-	thrust::sort(thrust::cuda::par.on(0), d_dopplerVolume.begin(), d_dopplerVolume.end()); // execute on stream 0
 	float vk = d_dopplerVolume[k];
 	float vk1 = (k + 1 < volumeSize) ? d_dopplerVolume[k + 1] : vk;
 
@@ -73,19 +75,17 @@ float percentileWithThrust(const std::vector<float>& dopplerVolume,
  */
 float percentileWithDeviceRadixSort(const std::vector<float>& dopplerVolume, float percentil)
 {
+  /// START SORT WITH RADIX
   unsigned int volumeSize = dopplerVolume.size();
   float *d_in = nullptr;
   float *d_out = nullptr;
 
   CHECK_CUDA(cudaMalloc(&d_in, volumeSize * sizeof(float)));
   CHECK_CUDA(cudaMalloc(&d_out, volumeSize * sizeof(float)));
-
-  // Copy input data
   CHECK_CUDA(cudaMemcpy(d_in, dopplerVolume.data(),
                         volumeSize * sizeof(float),
                         cudaMemcpyHostToDevice));
 
-  // Temporary storage
   void *d_temp_storage = nullptr;
   size_t temp_storage_bytes = 0;
 
@@ -97,7 +97,9 @@ float percentileWithDeviceRadixSort(const std::vector<float>& dopplerVolume, flo
 
   // Run sorting
   cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_in, d_out, volumeSize);
+  /// END SORT WITH RADIX
 
+  // Compute the percentile
 	const double r = percentil * (volumeSize - 1);
 	const size_t k = static_cast<size_t>(floor(r));
 	const double frac = r - static_cast<double>(k);
@@ -145,7 +147,7 @@ int main() {
     std::vector<float> h_noise(volumeSize);
 
     std::mt19937 rng(12345); // deterministic seed
-    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    std::uniform_real_distribution<float> dist(0.0001f, 10000.0f);
 
     for (unsigned int i = 0; i < volumeSize; ++i) {
         // Simple white noise in [0,1); replace with any noise you like

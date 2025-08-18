@@ -1,5 +1,21 @@
-## Compilation
-nvcc -arch=sm_75 percentileMethods.cu -o percentileMethods
+## Compilation for CUDA 12.8 with GCC-14 and G++-14
+sudo update-alternatives --config gcc  --> set gcc-14
+sudo update-alternatives --config g++  --> set g++-14
+
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-12.8/lib64
+export PATH=${PATH}:/usr/local/cuda-12.8/bin
+
+nvcc -O3 -arch=sm_75 percentileMethods.cu -o percentileMethods
+./percentileMethods
+
+## Compilation for CUDA 11.7 with GCC-11 and G++-11
+sudo update-alternatives --config gcc  --> set gcc-11
+sudo update-alternatives --config g++  --> set g++-11
+
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-11.7/lib64
+export PATH=${PATH}:/usr/local/cuda-11.7/bin
+
+nvcc -O3 -arch=sm_75 percentileMethods.cu -o percentileMethods
 ./percentileMethods
 
 ## Objective
