@@ -1,4 +1,5 @@
 #include <thrust/device_vector.h>
+#include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 #include <cuda_runtime.h>
 #include <cub/cub.cuh>
@@ -39,17 +40,16 @@ inline float lerp_two(float a, float b, double t)
  *
  * @return the percentile score
  */
-float percentileWithThrust(const std::vector<float>& dopplerVolume,
-                           float percentil)
+float percentileWithThrust(float* dopplerVolume, unsigned int volumeSize, float percentil)
 {
-  unsigned int volumeSize = dopplerVolume.size();
 	const double r = percentil * (volumeSize - 1);
 	const size_t k = static_cast<size_t>(floor(r));
 	const double frac = r - static_cast<double>(k);
 
   /// START SORT WITH THRUST
-	thrust::device_vector<float> d_dopplerVolume(dopplerVolume);
   auto startSortTiming = std::chrono::high_resolution_clock::now();  // START TIMING (exclude copy to device)
+  thrust::device_ptr<float> dev_ptr = thrust::device_pointer_cast(dopplerVolume);
+	thrust::device_vector<float> d_dopplerVolume(dev_ptr, dev_ptr + volumeSize);
 	thrust::sort(thrust::cuda::par.on(0), d_dopplerVolume.begin(), d_dopplerVolume.end()); // execute on stream 0
   /// END SORT WITH THRUST
 
@@ -76,27 +76,20 @@ float percentileWithThrust(const std::vector<float>& dopplerVolume,
  *
  * @return the percentile score
  */
-float percentileWithDeviceRadixSort(const std::vector<float>& dopplerVolume, float percentil)
+float percentileWithDeviceRadixSort(float* d_in, unsigned int volumeSize, float percentil)
 {
-  unsigned int volumeSize = dopplerVolume.size();
   const double r = percentil * (volumeSize - 1);
   const size_t k = static_cast<size_t>(floor(r));
   const double frac = r - static_cast<double>(k);
 
   /// START SORT WITH RADIX
-  float *d_in = nullptr;
   float *d_out = nullptr;
 
-  CHECK_CUDA(cudaMalloc(&d_in, volumeSize * sizeof(float)));
-  CHECK_CUDA(cudaMemcpy(d_in, dopplerVolume.data(),
-                        volumeSize * sizeof(float),
-                        cudaMemcpyHostToDevice));
-
   // Request temp storage size
-  auto startSortTiming = std::chrono::high_resolution_clock::now();  // START TIMING (exclude copy to device)
   void *d_temp_storage = nullptr;
   size_t temp_storage_bytes = 0;
   CHECK_CUDA(cudaMalloc(&d_out, volumeSize * sizeof(float)));
+  auto startSortTiming = std::chrono::high_resolution_clock::now();  // START TIMING (exclude copy to device)
   cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_in, d_out, volumeSize);
 
   // Allocate temp storage
@@ -148,30 +141,37 @@ int main() {
              freeB / (1024.0*1024*1024), totalB / (1024.0*1024*1024));
 
     // Generate noise on the host
-    const unsigned int volumeSize = 80 * 80 * 146 * 300 * 2; // For real size test
+    const unsigned int volumeSize = 80 * 80 * 146 * 300 * 10 * 4; // For bigger volume
     //const unsigned int volumeSize = 80 * 80 * 146 * 300; // For real size test
-    // const unsigned int volumeSize = 80; // For quick test
+
     std::vector<float> h_noise(volumeSize);
 
     std::mt19937 rng(12345); // deterministic seed
     std::uniform_real_distribution<float> dist(0.0001f, 10000.0f);
 
     for (unsigned int i = 0; i < volumeSize; ++i) {
-        // Simple white noise in [0,1); replace with any noise you like
-        h_noise[i] = dist(rng);
-        //std::cout << "i :" << i << " value: " << h_noise[i] << std::endl;
+      // Simple white noise in [0,1); replace with any noise you like
+      h_noise[i] = dist(rng);
+      //std::cout << "i :" << i << " value: " << h_noise[i] << std::endl;
     }
+    float *d_in = nullptr;
+
+    CHECK_CUDA(cudaMalloc(&d_in, volumeSize * sizeof(float)));
+    CHECK_CUDA(cudaMemcpy(d_in, h_noise.data(),
+                          volumeSize * sizeof(float),
+                          cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaDeviceSynchronize());
 
     float percentileRank {0.9f}; // Must be between 0 and 1
 
     auto startThrust = std::chrono::high_resolution_clock::now();
-    float resultThurst = percentileWithThrust(h_noise, percentileRank);
+    float resultThurst = percentileWithThrust(d_in, volumeSize, percentileRank);
     std::cout << "THRUST output: " << resultThurst << std::endl;
     auto stopThrust = std::chrono::high_resolution_clock::now();
     std::cout << "THRUST Total time of execution: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopThrust - startThrust).count() << "ms" << std::endl;
 
     auto startRadix = std::chrono::high_resolution_clock::now();
-    float resultRadix = percentileWithDeviceRadixSort(h_noise, percentileRank);
+    float resultRadix = percentileWithDeviceRadixSort(d_in, volumeSize, percentileRank);
     std::cout << "RADIX output:  " << resultRadix << std::endl;
     auto stopRadix = std::chrono::high_resolution_clock::now();
     std::cout << "RADIX total time of execution: " << std::chrono::duration_cast<std::chrono::milliseconds>(stopRadix - startRadix).count() << "ms" << std::endl;
